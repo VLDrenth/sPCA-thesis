@@ -48,7 +48,7 @@ def winsor(x, p):
     # if nargout > 1: ??
     return out
 
-def sPCAest(target, X, nfac, quantile=[0, 100]):
+def sPCAest(target, X, nfac, quantile=[0, 100], h_steps=1):
     """
     This function performs sPCA (scaled principal component analysis) on the input data.
     It takes in three input variables, X, target, and nfac, and returns the sPCA factors in f.
@@ -65,7 +65,9 @@ def sPCAest(target, X, nfac, quantile=[0, 100]):
     beta = np.empty(Xs.shape[1])
     for j in range(Xs.shape[1]):
         lr = LinearRegression(fit_intercept=True)
-        lr.fit(Xs[:, j].reshape(-1, 1), target)
+
+        # Drop the last h_steps observations from Xs and target to avoid look-ahead bias
+        lr.fit(Xs[:-h_steps, j].reshape(-1, 1), target[:-h_steps])
         beta[j] = lr.coef_[0]
 
         #xvar = np.column_stack((np.ones(T), Xs[:, j]))
