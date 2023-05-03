@@ -209,3 +209,105 @@ def AR_predict(series, max_lags=20):
         ar_preds[i] = model_fit.predict(start=i, end=i)[0]
 
     return ar_preds
+
+def corr_uniform(size=5, rho = 0.55):
+    # Set the means and covariance matrix
+    mean = [0, 0]
+    cov = [[1, rho], [rho, 1]]
+
+    # Generate N samples from a multivariate normal distribution
+    samples = np.random.multivariate_normal(mean, cov, size=size)
+
+    # Transform the samples into uniform distributions
+    u1 = (np.sin(samples[:, 0]) + 1) / 2
+    u2 = (np.sin(samples[:, 1]) + 1) / 2
+
+    return u1, u2
+
+def generate_data(n, T, N, h_steps=1, heteroskedastic=False, psi_max=None, rho=None):
+    # Check if weak or strong factor model
+    if n == N:
+        # Strong factor model, require psi_max and rho
+        assert psi_max is not None
+        assert rho is not None
+
+    # Generate y_{t + h} = g_t + e_{t + h}
+    # e_{t + h} ~ N(0, 1)
+    # g_t ~ N(0, 1)
+    # X_t,i = g_t*phi_i + h_t*psi_i + u_t,i
+
+    # Set T to T + h to account for lag
+    T_plus_h = T + h_steps
+
+    # Generate g_t
+    g = np.random.normal(0, 1, T_plus_h)
+
+    # Generate h_t
+    h = np.random.normal(0, 1, T_plus_h)
+
+    # Generate e_t+h
+    e = np.random.normal(0, 1, T_plus_h)
+
+    # Generate y_{t+h}
+    y_h = g + e
+
+    # Generate y_t
+    y_t = np.zeros(T_plus_h)
+    for i in range(h_steps, T_plus_h):
+        y_t[i] = y_h[i - h_steps]
+
+    
+    phi = np.zeros(N)
+    psi = np.zeros(N)
+
+    if n < N:
+        # Generate phi_i (Nx1) with n < N nonzero elements
+        phi[:n] = np.random.uniform(0, 1, n)
+
+        # Generate psi_i (Nx1) with n < N nonzero elements
+        psi[:n] = np.random.uniform(0, 1, n)
+
+        # Generate idiosyncratic error's variances
+        variance_u = np.random.uniform(0, 1, N)        
+
+    elif n == N:
+        # Phi is U(0, phi_max)
+        psi = np.random.uniform(0, psi_max, N)
+
+        # Draw correlated phi and sigma_u
+        # Generate correlation matrix for phi and sigma_u
+        phi, variance_u = corr_uniform(rho=rho*1.1, size=N)
+
+    u = np.zeros((T, N))
+    # Generate u_t,i depending on whether the model is heteroskedastic or not
+    if heteroskedastic:
+        for t in range(T):
+            scale = np.random.uniform(0.5, 1.5)
+            u[t, :] = np.random.normal(0, variance_u * scale, N)
+    else:
+        # Generate covariance matrix for u_t
+        sigma_u = np.diag(variance_u)
+
+        # Generate u
+        u = np.random.multivariate_normal(np.zeros(N), sigma_u, T)
+
+    # Drop first h rows
+    y_h = y_h[h_steps:]
+    y_t = y_t[h_steps:]
+    e = e[h_steps:]
+    g = g[h_steps:]
+    h = h[h_steps:]
+
+    # Generate X_t
+    X = np.zeros((T, N))
+    for i in range(N):
+        X[:, i] = g*phi[i] + h*psi[i] + u[:, i]
+
+    results = {'y_t':y_t,
+               'y_h':y_h,
+                'X':X,
+                'g':g,
+                'e':e,
+                }
+    
+    return results
