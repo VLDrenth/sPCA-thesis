@@ -1,6 +1,6 @@
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, FastICA
 import numpy as np
 import pandas as pd
 
@@ -77,17 +77,18 @@ def sPCAest(target, X, nfac, quantile=[0, 100], h_steps=1):
     if quantile[0] != 0 or quantile[1] != 100:
         beta = winsor(np.abs(beta.flatten()), quantile)
 
+
     # Scale Xs by the estimated beta
     scaleXs = np.empty((Xs.shape[0], Xs.shape[1]))
     for j in range(Xs.shape[1]):
         scaleXs[:, j] = Xs[:, j] * beta[j]
 
     # Perform PCA on the scaled Xs
-    #pca = PCA(n_components=nfac)
-    #pca.fit(scaleXs)
-    #f = pca.transform(scaleXs)
-    #eigen_values = pca.explained_variance_ratio_
-    ehat, f, lambda_mat, ve2, eigen_values = pc_T(scaleXs, nfac)
+    pca = PCA(n_components=nfac)
+    pca.fit(scaleXs)
+    f = pca.transform(scaleXs)
+    eigen_values = pca.explained_variance_ratio_
+    #ehat, f, lambda_mat, ve2, eigen_values = pc_T(scaleXs, nfac)
     return  f, eigen_values/np.sum(eigen_values)
 
 def spca_is(X, target, nfac=5, scale=True, quantile=[0, 100]):
