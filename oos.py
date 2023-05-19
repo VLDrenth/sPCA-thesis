@@ -4,7 +4,7 @@ import os
 from scipy.stats import t
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
-from src.functions import pc_T, R2_sklearn, winsor
+from src.helpers.functions import pc_T, R2_sklearn, winsor
 
 def select_AR_lag_SIC(y, h, p_max):
     """
