@@ -1,6 +1,7 @@
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.decomposition import PCA, FastICA
+from sklearn.metrics import r2_score
 import numpy as np
 import pandas as pd
 
@@ -177,8 +178,16 @@ def compute_R2(actuals, preds, adjusted = True, nfac = None):
         R2_adj = 1 - (1 - R2) * (n - 1) / (n - k - 1)
         
         return R2_adj
+    
+def R2_sklearn(model, X, y):
+    """Compute adjusted R2 using sklearn"""
+    
+    y_pred = model.predict(X)
+    R2 = r2_score(y, y_pred)
+    adjusted_R2 = 1 - ((1 - R2) * (len(y) - 1) / (len(y) - X.shape[1] - 1))
+    
+    return adjusted_R2
      
-
 def R2_OS(actuals, forecasts_pca, forecasts_benchmark):
     """Compute R2 for out of sample predictions"""
     
@@ -194,21 +203,6 @@ def R2_OS(actuals, forecasts_pca, forecasts_benchmark):
 
     return R2_os
 
-
-def AR_predict(series, max_lags=20):
-    ar_preds = np.zeros(len(series))
-
-    for i in range(1,max_lags):
-        ar_preds[i] = np.mean(series[:i])
-
-    for i in range(max_lags, len(series)):
-        # Choose optimal lag length
-        ar = fit_lags(series[:i], 10)
-        
-        model_fit = ar.fit()    
-        ar_preds[i] = model_fit.predict(start=i, end=i)[0]
-
-    return ar_preds
 
 def corr_uniform(size=5, rho = 0.55):
     # Generate N samples from a multivariate normal distribution
