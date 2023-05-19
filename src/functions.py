@@ -4,7 +4,6 @@ from sklearn.decomposition import PCA, FastICA
 import numpy as np
 import pandas as pd
 
-
 def winsor(x, p):
     if not np.ndim(x) == 1:
         print("Got x of shape" + str(x.shape) + " dimensions, expected 1")
@@ -60,6 +59,7 @@ def sPCAest(target, X, nfac, quantile=[0, 100], h_steps=1):
         raise ValueError('X and Y variables not of equal length')
 
     # Standardize X to Xs
+    Xs = np.zeros(X.shape)
     Xs = StandardScaler(with_mean=True, with_std=True).fit_transform(X)
 
     beta = np.empty(Xs.shape[1])
@@ -76,7 +76,6 @@ def sPCAest(target, X, nfac, quantile=[0, 100], h_steps=1):
     
     if quantile[0] != 0 or quantile[1] != 100:
         beta = winsor(np.abs(beta.flatten()), quantile)
-
 
     # Scale Xs by the estimated beta
     scaleXs = np.empty((Xs.shape[0], Xs.shape[1]))
@@ -212,12 +211,8 @@ def AR_predict(series, max_lags=20):
     return ar_preds
 
 def corr_uniform(size=5, rho = 0.55):
-    # Set the means and covariance matrix
-    mean = [0, 0]
-    cov = [[1, rho], [rho, 1]]
-
     # Generate N samples from a multivariate normal distribution
-    samples = np.random.multivariate_normal(mean, cov, size=size)
+    samples = np.random.multivariate_normal([0, 0], cov=[[1, rho], [rho, 1]], size=size)
 
     # Transform the samples into uniform distributions
     u1 = (np.sin(samples[:, 0]) + 1) / 2
