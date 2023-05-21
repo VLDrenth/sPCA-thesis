@@ -15,6 +15,7 @@ def linear_reg(y, x, constant=1, method='NW', nlag=0):
     bic:        nVar x 1 array of BIC values
     """
 
+
     # Make sure that y and x are numpy arrays
     x = np.array(x)
     y = np.array(y)
@@ -27,7 +28,8 @@ def linear_reg(y, x, constant=1, method='NW', nlag=0):
                         'Given is {}'.format(y.shape))
    
     if x.shape[0] != y.shape[0]:
-        raise ValueError('linear_reg: Length of y and x is not the same.')
+        raise ValueError('linear_reg: Length of y and x is not the same.', 
+                         'Given is x: {} and y: {}'.format(x.shape[0], y.shape[0]))
     
     if method not in ['OLS', 'W', 'NW', 'HH', 'Skip']:
         raise ValueError('linear_reg: Wrong specification for standard errors provided.')
