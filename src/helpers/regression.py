@@ -18,7 +18,7 @@ def linear_reg(y, x, constant=1, method='NW', nlag=0):
     # Make sure that y and x are numpy arrays
     x = np.array(x)
     y = np.array(y)
-    
+
     y = y.reshape((-1, 1))
 
     # Error checking on input 
@@ -53,7 +53,7 @@ def linear_reg(y, x, constant=1, method='NW', nlag=0):
     std_err = np.empty((K, nVar))
     t_stat = np.empty((K, nVar))
     
-  # Newey-West standard errors
+    # Newey-West standard errors
     errv_lag = np.concatenate((np.zeros((nlag, nVar)), errv))
 
     omega = np.zeros((K, K))

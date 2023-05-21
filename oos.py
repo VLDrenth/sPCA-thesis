@@ -5,6 +5,7 @@ from scipy.stats import t
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from src.helpers.functions import pc_T, R2_sklearn, winsor
+from src.helpers.regression import linear_reg
 
 def select_AR_lag_SIC(y, h, p_max):
     """
@@ -64,14 +65,16 @@ def in_sample(y, z):
         tstat = np.full(Zs.shape[1], np.nan)
             
         for j in range(Zs.shape[1]):
-            lm = lr.fit(Zs[:-h, j].reshape(-1, 1), y_h[1:])
-            parm = lm.coef_
-            beta[j] = parm[0]
+            #lm = lr.fit(Zs[:-h, j].reshape(-1, 1), y_h[1:])
+            #parm = lm.coef_
+            parm, std_err, t_stat, reg_se, adj_r2, bic = linear_reg(y_h[h:], Zs[:-h, j].reshape(-1, 1), constant=1, nlag=h)
+            beta[j] = parm[1]
 
-        
-        beta_win = winsor(np.abs(beta), p=(0, 100))
-        print(beta_win)
+        # Winsorizing should be done at (0, 90)
+        beta_win = winsor(np.abs(beta), p=(0, 90))
         scaleZs = np.zeros(Zs.shape)
+
+        # Scale the factors by the winsorized betas
         for j in range(Zs.shape[1]):
             scaleZs[:, j] = Zs[:, j] * beta_win[j]
 
@@ -79,7 +82,6 @@ def in_sample(y, z):
         
         _, z_pc, _, _, _ = pc_T(Zs, kn)
         _, z_spc, _, _, _ = pc_T(scaleZs, kn)
-
 
         pca.fit(Zs)
         loadings_pc, var_explained_pc = pca.transform(Zs), pca.explained_variance_ratio_
@@ -99,11 +101,13 @@ def in_sample(y, z):
         adr2_spc = np.full(kn, np.nan)
 
         for l in range(kn):
-            lm_pc = lr.fit(z_pc[p_AR_star_n-1:-h, :l+1], res_h)
-            adr2_pc[l] = R2_sklearn(lm_pc, z_pc[p_AR_star_n-1:-h, :l+1], res_h)
+            #lm_pc = lr.fit(z_pc[p_AR_star_n-1:-h, :l+1], res_h)
+            parm, std_err, t_stat, reg_se, adj_r2_pc, bic = linear_reg(res_h, z_pc[p_AR_star_n-1:-h, :l+1], constant=1, nlag=h)
+            adr2_pc[l] = adj_r2_pc
 
-            lm_spc = lr.fit(z_spc[p_AR_star_n-1:-h, :l+1], res_h)
-            adr2_spc[l] = R2_sklearn(lm_spc, z_spc[p_AR_star_n-1:-h, :l+1], res_h)
+            #lm_spc = lr.fit(z_spc[p_AR_star_n-1:-h, :l+1], res_h)
+            parm, std_err, t_stat, reg_se, adj_r2_spc, bic = linear_reg(res_h, z_spc[p_AR_star_n-1:-h, :l+1], constant=1, nlag=h)
+            adr2_spc[l] = adj_r2_spc
         
 
         out.append(np.vstack((adr2_pc, adr2_spc)).T * 100)
