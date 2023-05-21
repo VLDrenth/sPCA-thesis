@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import yfinance as yf
 from scipy.stats import t
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
@@ -12,8 +13,8 @@ def select_AR_lag_SIC(y, h, p_max):
     Selects the optimal lag length for the AR model using the SIC.
     """
     T = len(y)
-    AIC = np.zeros(p_max)
-    for p in range(p_max):
+    AIC = np.zeros(p_max+1)
+    for p in range(p_max + 1):
         a_hat, res = estimate_AR_res(y, h, p)
         sigma2 = np.sum(res ** 2) / (T - p - 1)
         AIC[p] = np.log(sigma2) + 2 * (p + 1) / T
@@ -35,6 +36,24 @@ def estimate_AR_res(y, h, p):
     res = y_h - lm.predict(X)
     return a_hat, res
 
+def load_yf(ticker='^GSPC'):
+    # Load data from VIX
+    serie = yf.download(ticker, start='1960-01-01', end='2020-01-01')
+
+    serie = serie['Close']
+    # Compute the historical mean at each time point
+    serie_mean = np.zeros(len(serie))
+    for t in range(len(serie)):
+        serie_mean[t] = np.mean(serie[:t])
+
+    # Demean the data
+    serie = serie - serie_mean
+
+    # Compute variance over each month
+    serie = serie.resample('M').std() 
+
+    return serie
+
 def in_sample(y, z):
     """ This function computes the in-sample R^2 and the in-sample adjusted R^2."""
 
@@ -42,23 +61,23 @@ def in_sample(y, z):
     out_table = []
     loadings = []
     horizon = [1]
-    maxp = [3]
+    maxp = [1]
     kn = 15
+    Zs = (z - np.mean(z, axis=0)) / np.std(z, axis=0)
+    T = y.shape[0]
 
-    lr = LinearRegression()
-    pca = PCA(n_components=kn)
 
     for k in range(len(horizon)):
         h = horizon[k]
-        Zs = (z - np.mean(z, axis=0)) / np.std(z, axis=0)
 
-        T = y.shape[0]
         y_h = np.zeros(T - (h - 1))
         for t in range(T - (h - 1)):
             y_h[t] = np.mean(y[t:t + h])
         
         p_max = maxp[k]
         p_AR_star_n = select_AR_lag_SIC(y, h, p_max)
+
+        print('p_AR_star_n: ', p_AR_star_n)
         a_hat, res_h = estimate_AR_res(y, h, p_AR_star_n)
 
         beta = np.full(Zs.shape[1], np.nan)
@@ -101,11 +120,9 @@ def in_sample(y, z):
         adr2_spc = np.full(kn, np.nan)
 
         for l in range(kn):
-            #lm_pc = lr.fit(z_pc[p_AR_star_n-1:-h, :l+1], res_h)
             parm, std_err, t_stat, reg_se, adj_r2_pc, bic = linear_reg(res_h, z_pc[p_AR_star_n-1:-h, :l+1], constant=1, nlag=h)
             adr2_pc[l] = adj_r2_pc
 
-            #lm_spc = lr.fit(z_spc[p_AR_star_n-1:-h, :l+1], res_h)
             parm, std_err, t_stat, reg_se, adj_r2_spc, bic = linear_reg(res_h, z_spc[p_AR_star_n-1:-h, :l+1], constant=1, nlag=h)
             adr2_spc[l] = adj_r2_spc
         
@@ -136,21 +153,24 @@ def main():
     raw_data.set_index('sasdate', inplace=True)
 
     # Get the to be predicted variable
-    inflation = np.log(raw_data['CPIAUCSL']).diff().dropna() * 100
+    inflation = np.log(raw_data['CPIAUCSL']).diff().dropna()
+    unemployment = np.log(raw_data['UNRATE']).diff().dropna()
+    ip_growth = np.log(raw_data['INDPRO']).diff().dropna()
 
     # Select only data from 1960-01-01 untill 2019-12-01
     data = data.loc[(data.index >= '1960-01-01') & (data.index <= '2019-12-01')]
     
     # Drop first few rows of raw data to match dimensions by taking last 720 rows
     inflation = inflation.iloc[-720:]
-
-    print("Shapes of data and inflation: ", data.shape, inflation.shape)
+    unemployment = unemployment.iloc[-720:]
+    ip_growth = ip_growth.iloc[-720:]
+    vol = load_yf('^GSPC')
 
     # Drop columns that are not used in original paper
     to_drop = ["ACOGNO", "TWEXAFEGSMTHx", "OILPRICEx", "VXOCLSx", "UMCSENTx"]
     data.drop(to_drop, axis=1, inplace=True)
 
-    test = in_sample(y = inflation, z = data.values)
+    test = in_sample(y = vol, z = data.values)
     print(test)
 
 if __name__ == '__main__':
