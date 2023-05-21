@@ -14,6 +14,11 @@ def linear_reg(y, x, constant=1, method='NW', nlag=0):
     adj_r2:     nVar x 1 array of adjusted R^2 values
     bic:        nVar x 1 array of BIC values
     """
+
+    # Make sure that y and x are numpy arrays
+    x = np.array(x)
+    y = np.array(y)
+    
     y = y.reshape((-1, 1))
 
     # Error checking on input 
@@ -48,21 +53,21 @@ def linear_reg(y, x, constant=1, method='NW', nlag=0):
     std_err = np.empty((K, nVar))
     t_stat = np.empty((K, nVar))
     
-    # Newey-West standard errors
+  # Newey-West standard errors
     errv_lag = np.concatenate((np.zeros((nlag, nVar)), errv))
-    print(errv_lag.shape)
-    for i in range(nlag+1):
-        omega = np.zeros((K, K))
-        for t in range(nlag+1, T+nlag+1):
-            xt = x[t-nlag-1, :].reshape((1, K))
-            et = errv_lag[t-i, :].reshape((nVar, 1))
-            omega += xt.T @ et @ et.T @ xt
-        omega /= T
-        for j in range(nVar):
-            vcov = np.linalg.inv(Exx) @ omega @ np.linalg.inv(Exx)
-            std_err[:, j] = np.sqrt(np.diag(vcov))
-            t_stat[:, j] = parm[:, j] / std_err[:, j]
 
+    omega = np.zeros((K, K))
+    for i in range(nlag):
+        omega.fill(0)
+        for t in range(nlag, T + nlag):
+            xt = x[t - nlag, :].reshape((1, K))
+            et = errv_lag[t - i, :].reshape((nVar, 1))
+            omega += np.dot(np.dot(xt.T, et), np.dot(et.T, xt))
+        omega /= T
+
+        vcov = np.linalg.inv(Exx) @ omega @ np.linalg.inv(Exx)
+        std_err = np.sqrt(np.diag(vcov))
+        t_stat = parm / std_err
 
     vary = np.mean((y - np.ones((T, 1)) * np.mean(y))**2)
     adj_r2 = (1 - (reg_se / vary) * (T - 1) / (T - K))
