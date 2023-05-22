@@ -4,6 +4,11 @@ from sklearn.decomposition import PCA, FastICA
 from sklearn.metrics import r2_score
 import numpy as np
 import pandas as pd
+import os
+import sys
+import yfinance as yf
+
+ROOT = os.path.join("c:/Users/Vincent/PythonProjects/Thesis")
 
 def winsor(x, p):
     if not np.ndim(x) == 1:
@@ -116,6 +121,48 @@ def spca_is(X, target, nfac=5, scale=True, quantile=[0, 100]):
 
     # Return predicted values, and eigen values
     return y_pred, eigen_values
+
+def predict_pca(X, y_h, y_t, h_steps=1, nfac=2, method="sPCA", start_test=200, N_test=50):
+    pca = PCA(n_components=nfac)
+    reg = LinearRegression()
+
+    predicted = np.zeros((1, N_test - h_steps - 1))
+    error_mat = np.zeros((1, N_test - h_steps - 1))
+    normalize = StandardScaler(with_mean=True, with_std=True)
+
+    for t in range(N_test - h_steps - 1):
+        if t % 10 == 0:
+            print("Period {}".format(t))
+
+        # Split data into training and testing sets
+        # Training set is the first 200 + t observations
+        # Testing set is the last 50 - t observations
+        idx_split = start_test + t
+        
+        X_train = X[:idx_split]
+        y_train = y_h[:idx_split]
+        y_test = y_t[idx_split]
+
+        if method == "sPCA":
+            # Estimate the parameters of the model using sPCAest
+            # The function sPCAest is defined in functions.py
+            factors, _ = sPCAest(y_train, X_train, nfac,[0, 100], h_steps)
+        elif method == "PCA":
+            X_normalized = normalize.fit_transform(X_train)
+            factors = pca.fit_transform(X_normalized)
+
+        reg.fit(factors[:-h_steps,:], y_train[:-h_steps])
+        
+        # Predict y_{t+h} using the estimated parameters
+        y_pred = reg.predict(factors[-1].reshape(1, -1))
+
+        # Add predicted value to the predicted vector
+        predicted[0, t] = y_pred
+        
+        # Compute the error
+        error_mat[0, t] = y_pred - y_test
+
+    return error_mat, predicted
 
 
 def pc_T(y, nfac):
@@ -301,3 +348,87 @@ def generate_data(n, T, N, h_steps=1, heteroskedastic=False, psi_max=None, rho=N
                 }
     
     return results
+
+def load_yf(ticker='^GSPC'):
+    # Load data from VIX
+    serie = yf.download(ticker, start='1960-01-01', end='2020-01-01')
+
+    serie = serie['Close']
+    # Compute the historical mean at each time point
+    serie_mean = np.zeros(len(serie))
+    for t in range(len(serie)):
+        serie_mean[t] = np.mean(serie[:t])
+
+    # Demean the data
+    serie = serie - serie_mean
+
+    # Compute variance over each month
+    serie = serie.resample('M').std() 
+
+    return serie
+
+def get_data():
+    # Load data
+    file_path_clean = os.path.join(ROOT, 'resources/data/data_fred_matlab.csv')
+    file_path_raw = os.path.join(ROOT, 'resources/data/raw_data_no_missing.csv')
+    data = pd.read_csv(file_path_clean)
+    raw_data = pd.read_csv(file_path_raw)
+
+    # Set date as index of df
+    data['sasdate'] = pd.to_datetime(data['sasdate'])
+    data.set_index('sasdate', inplace=True)
+
+    # Drop last column (unnamed)
+    data.drop(data.columns[-1], axis=1, inplace=True)
+
+    raw_data['sasdate'] = pd.to_datetime(raw_data['sasdate'])
+    raw_data.set_index('sasdate', inplace=True)
+
+    # Get the to be predicted variable
+    inflation = np.log(raw_data['CPIAUCSL']).diff().dropna()
+    unemployment = np.log(raw_data['UNRATE']).diff().dropna()
+    ip_growth = np.log(raw_data['INDPRO']).diff().dropna()
+
+    # Select only data from 1960-01-01 untill 2019-12-01
+    data = data.loc[(data.index >= '1960-01-01') & (data.index <= '2019-12-01')]
+
+    # Drop columns that are not used in original paper
+    to_drop = ["ACOGNO", "TWEXAFEGSMTHx", "OILPRICEx", "VXOCLSx", "UMCSENTx"]
+    data.drop(to_drop, axis=1, inplace=True)
+
+    
+    # Drop first few rows of raw data to match dimensions by taking last 720 rows
+    inflation = inflation.iloc[-720:]
+    unemployment = unemployment.iloc[-720:]
+    ip_growth = ip_growth.iloc[-720:]
+    vol = load_yf('^GSPC')
+
+    return {'data': data, 'inflation': inflation, 'unemployment': unemployment, 'ip_growth': ip_growth}
+
+def estimate_AR_res(y, h, p):
+    """
+    Estimates the AR model and returns the residuals.
+    """
+    T = len(y)
+    X = np.zeros((T - p, p + 1))
+    for i in range(T - p):
+        X[i, :] = np.concatenate((np.array([1]), y[i:i + p]))
+    y_h = y[p:]
+    lm = LinearRegression()
+    lm.fit(X, y_h)
+    a_hat = lm.coef_
+    res = y_h - lm.predict(X)
+    return a_hat, res
+
+def select_AR_lag_SIC(y, h, p_max):
+    """
+    Selects the optimal lag length for the AR model using the SIC.
+    """
+    T = len(y)
+    AIC = np.zeros(p_max+1)
+    for p in range(p_max + 1):
+        a_hat, res = estimate_AR_res(y, h, p)
+        sigma2 = np.sum(res ** 2) / (T - p - 1)
+        AIC[p] = np.log(sigma2) + 2 * (p + 1) / T
+    p_star = np.argmin(AIC)
+    return p_star
