@@ -368,8 +368,8 @@ def load_yf(ticker='^GSPC'):
     return serie
 
 def get_data():
-    # Load data
-    file_path_clean = os.path.join(ROOT, 'resources/data/data_fred_matlab.csv')
+    # Load data Should be data_fred_matlab.csv
+    file_path_clean = os.path.join(ROOT, 'resources/data/data_matlab_replication.csv')
     file_path_raw = os.path.join(ROOT, 'resources/data/raw_data_no_missing.csv')
     data = pd.read_csv(file_path_clean)
     raw_data = pd.read_csv(file_path_raw)
@@ -379,29 +379,30 @@ def get_data():
     data.set_index('sasdate', inplace=True)
 
     # Drop last column (unnamed)
-    data.drop(data.columns[-1], axis=1, inplace=True)
+    #data.drop(data.columns[-1], axis=1, inplace=True)
 
     raw_data['sasdate'] = pd.to_datetime(raw_data['sasdate'])
     raw_data.set_index('sasdate', inplace=True)
 
     # Get the to be predicted variable
     inflation = np.log(raw_data['CPIAUCSL']).diff().dropna()
-    unemployment = np.log(raw_data['UNRATE']).diff().dropna()
+    #unemployment = (raw_data['UNRATE']).diff().dropna()
+    unemployment = data['UNRATE']
+
     ip_growth = np.log(raw_data['INDPRO']).diff().dropna()
 
     # Select only data from 1960-01-01 untill 2019-12-01
     data = data.loc[(data.index >= '1960-01-01') & (data.index <= '2019-12-01')]
 
     # Drop columns that are not used in original paper
-    to_drop = ["ACOGNO", "TWEXAFEGSMTHx", "OILPRICEx", "VXOCLSx", "UMCSENTx"]
-    data.drop(to_drop, axis=1, inplace=True)
+    # Paper removes:{'ACOGNO'} {'ANDENOx'} {'TWEXMMTH'} {'UMCSENTx'} {'VXOCLSx'}
+    #to_drop = ["ACOGNO", "TWEXAFEGSMTHx", "OILPRICEx", "VXOCLSx", "UMCSENTx"]
+    #data.drop(to_drop, axis=1, inplace=True)
 
-    
     # Drop first few rows of raw data to match dimensions by taking last 720 rows
     inflation = inflation.iloc[-720:]
     unemployment = unemployment.iloc[-720:]
     ip_growth = ip_growth.iloc[-720:]
-    vol = load_yf('^GSPC')
 
     return {'data': data, 'inflation': inflation, 'unemployment': unemployment, 'ip_growth': ip_growth}
 
@@ -414,7 +415,7 @@ def estimate_AR_res(y, h, p):
     for i in range(T - p):
         X[i, :] = np.concatenate((np.array([1]), y[i:i + p]))
     y_h = y[p:]
-    lm = LinearRegression()
+    lm = LinearRegression(fit_intercept=False)
     lm.fit(X, y_h)
     a_hat = lm.coef_
     res = y_h - lm.predict(X)
@@ -425,10 +426,10 @@ def select_AR_lag_SIC(y, h, p_max):
     Selects the optimal lag length for the AR model using the SIC.
     """
     T = len(y)
-    AIC = np.zeros(p_max+1)
+    SIC = np.zeros(p_max+1)
     for p in range(p_max + 1):
         a_hat, res = estimate_AR_res(y, h, p)
         sigma2 = np.sum(res ** 2) / (T - p - 1)
-        AIC[p] = np.log(sigma2) + 2 * (p + 1) / T
-    p_star = np.argmin(AIC)
+        SIC[p] = np.log(sigma2) + 2 * (p + 1) / T
+    p_star = np.argmin(SIC)
     return p_star
