@@ -15,7 +15,6 @@ def linear_reg(y, x, constant=1, method='NW', nlag=0):
     bic:        nVar x 1 array of BIC values
     """
 
-
     # Make sure that y and x are numpy arrays
     x = np.array(x)
     y = np.array(y)
@@ -68,8 +67,9 @@ def linear_reg(y, x, constant=1, method='NW', nlag=0):
         omega /= T
 
         vcov = np.linalg.inv(Exx) @ omega @ np.linalg.inv(Exx)
-        std_err = np.sqrt(np.diag(vcov))
+        std_err = np.sqrt(np.diag(vcov)).reshape((K, nVar))
         t_stat = parm / std_err
+
 
     vary = np.mean((y - np.ones((T, 1)) * np.mean(y))**2)
     adj_r2 = (1 - (reg_se / vary) * (T - 1) / (T - K))

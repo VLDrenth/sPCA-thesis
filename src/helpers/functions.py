@@ -349,9 +349,9 @@ def generate_data(n, T, N, h_steps=1, heteroskedastic=False, psi_max=None, rho=N
     
     return results
 
-def load_yf(ticker='^GSPC'):
+def get_vol():
     # Load data from VIX
-    serie = yf.download(ticker, start='1960-01-01', end='2020-01-01')
+    serie = yf.download('^GSPC', start='1960-01-01', end='2020-01-01')
 
     serie = serie['Close']
     # Compute the historical mean at each time point
@@ -378,33 +378,26 @@ def get_data():
     data['sasdate'] = pd.to_datetime(data['sasdate'])
     data.set_index('sasdate', inplace=True)
 
-    # Drop last column (unnamed)
-    #data.drop(data.columns[-1], axis=1, inplace=True)
-
     raw_data['sasdate'] = pd.to_datetime(raw_data['sasdate'])
     raw_data.set_index('sasdate', inplace=True)
 
     # Get the to be predicted variable
     inflation = np.log(raw_data['CPIAUCSL']).diff().dropna()
-    #unemployment = (raw_data['UNRATE']).diff().dropna()
     unemployment = data['UNRATE']
-
     ip_growth = np.log(raw_data['INDPRO']).diff().dropna()
+    vol = get_vol()
 
     # Select only data from 1960-01-01 untill 2019-12-01
     data = data.loc[(data.index >= '1960-01-01') & (data.index <= '2019-12-01')]
-
-    # Drop columns that are not used in original paper
-    # Paper removes:{'ACOGNO'} {'ANDENOx'} {'TWEXMMTH'} {'UMCSENTx'} {'VXOCLSx'}
-    #to_drop = ["ACOGNO", "TWEXAFEGSMTHx", "OILPRICEx", "VXOCLSx", "UMCSENTx"]
-    #data.drop(to_drop, axis=1, inplace=True)
 
     # Drop first few rows of raw data to match dimensions by taking last 720 rows
     inflation = inflation.iloc[-720:]
     unemployment = unemployment.iloc[-720:]
     ip_growth = ip_growth.iloc[-720:]
+    vol = vol.iloc[-720:]
 
-    return {'data': data, 'inflation': inflation, 'unemployment': unemployment, 'ip_growth': ip_growth}
+    return {'data': data, 'inflation': inflation, 'unemployment': unemployment, 'ip_growth': ip_growth,
+            'volatility': vol}
 
 def estimate_AR_res(y, h, p):
     """
@@ -433,3 +426,29 @@ def select_AR_lag_SIC(y, h, p_max):
         SIC[p] = np.log(sigma2) + 2 * (p + 1) / T
     p_star = np.argmin(SIC)
     return p_star
+
+def lagged(x, lags):
+    """
+    Creates a lagged version of a given array.
+    """
+    if lags == 0:
+        return x
+    else:
+        copy_x = np.full(x.shape, np.nan)
+        copy_x[lags:] = x[:-lags]
+        return copy_x
+
+
+def lag_matrix(X, y, lags):
+    """
+    Creates a matrix of lagged versions of a given array.
+    """
+    if lags == 0:
+        return X
+    else:
+        copy_X = X.copy()
+        for l in range(lags):
+            copy_X = np.insert(copy_X, copy_X.shape[1], lagged(y, l), axis=1)
+        copy_X = copy_X[lags-1:, :]
+        return copy_X
+
