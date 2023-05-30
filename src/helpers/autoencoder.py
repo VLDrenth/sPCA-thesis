@@ -75,7 +75,7 @@ class Autoencoder(nn.Module):
     
     def forward(self, input):
         # Add Gaussian noise to input
-        input = input + torch.randn(input.shape).to(self.device) * 0.3
+        input = input + torch.randn(input.shape).to(self.device) * 0.1
 
         # Take input and reshape it so that it has 1 channel
         hidden = self.encoder(input)
