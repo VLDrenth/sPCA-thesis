@@ -1,6 +1,6 @@
 clear;clc;
-load('Data/DataMat/MacroTarget.mat');
-load('Data/Data_Processed/FRED.mat');
+load('MacroTarget.mat');
+load('FRED.mat');
 
 log_cpi=log(cpi_level(:,2));
 dlog_cpi=log_cpi(2:end)-log_cpi(1:end-1);
@@ -17,10 +17,10 @@ z=macro_nm2(tt2,:);
 out=cell(1,4);
 out_table=cell(1,4);
 loadings=cell(1,3);
-horizon=[1 3 6 12];
-maxp=[3 3 3 3];
-kn=8;
-for kk=1:4
+horizon=[1];
+maxp=[3];
+kn=15;
+for kk=1:1
 h=horizon(kk);
 Zs=standard(z);
 
@@ -45,7 +45,8 @@ for j=1:size(Zs,2)
     tstat(j)=t_stats(2);
 end
 
-beta_win=winsor(abs(beta),[0 90]);
+
+beta_win=winsor(abs(beta),[0 100]);
 scaleZs=NaN(size(Zs,1),size(Zs,2));
 for j=1:size(Zs,2)
     scaleZs(:,j)=Zs(:,j)*beta_win(j);    
@@ -81,6 +82,7 @@ out{kk}=[adr2_pc adr2_spc]*100;
 out_table{kk}=[var_explained_pc(1:kn) var_explained_spc(1:kn)];
 end
 output=[out{1}; out{2}; out{3}; out{4}];
+
 
 output=roundn(output,-2);
 

@@ -385,7 +385,6 @@ def get_data():
     inflation = np.log(raw_data['CPIAUCSL']).diff().dropna()
     unemployment = data['UNRATE']
     ip_growth = np.log(raw_data['INDPRO']).diff().dropna()
-    vol = get_vol()
 
     # Select only data from 1960-01-01 untill 2019-12-01
     data = data.loc[(data.index >= '1960-01-01') & (data.index <= '2019-12-01')]
@@ -394,10 +393,8 @@ def get_data():
     inflation = inflation.iloc[-720:]
     unemployment = unemployment.iloc[-720:]
     ip_growth = ip_growth.iloc[-720:]
-    vol = vol.iloc[-720:]
 
-    return {'data': data, 'inflation': inflation, 'unemployment': unemployment, 'ip_growth': ip_growth,
-            'volatility': vol}
+    return {'data': data, 'inflation': inflation, 'unemployment': unemployment, 'ip_growth': ip_growth}
 
 def estimate_AR_res(y, h, p):
     """

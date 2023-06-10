@@ -23,12 +23,13 @@ def ARDL_multi(y, z, h, p):
     c_hat = (p1+p2+1)-vector of coefficient estimates
             [a(0),a(1),...,a(p1),b(1),...,b(p2)]
     """
+    
     # Take care of Preliminaries
     sz = z.shape[1]
     T = y.shape[0]
     y_h = np.zeros(T - (h - 1))
     for t in range(T - (h - 1)):
-        y_h[t] = np.mean(y[t : t + (h - 1)])
+        y_h[t] = np.mean(y[t : t + (h)])
 
     # Create regressand/regressors
     p1 = p[0]
@@ -37,9 +38,11 @@ def ARDL_multi(y, z, h, p):
     y_h = y_h[p_max:]
     y_lags = np.empty((len(y_h), p_max))
     z_lags = np.empty((len(y_h), p_max * sz))
+
     for j in range(1, p_max + 1):
         y_lags[:, j - 1] = y[p_max - j : T - j - (h - 1)]
         z_lags[:, (j - 1) * sz : j * sz] = z[p_max - j : T - j - (h - 1), :]
+
     
     if p1 == 0:
         Z = np.concatenate((np.ones((len(y_h), 1)), z_lags), axis=1)

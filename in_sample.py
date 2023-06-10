@@ -1,58 +1,12 @@
 import pandas as pd
 import numpy as np
 import os
-import yfinance as yf
 from scipy.stats import t
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
-from src.helpers.functions import pc_T, R2_sklearn, winsor
+from src.helpers.functions import pc_T, R2_sklearn, winsor, get_data, select_AR_lag_SIC, estimate_AR_res
 from src.helpers.regression import linear_reg
 
-def select_AR_lag_SIC(y, h, p_max):
-    """
-    Selects the optimal lag length for the AR model using the SIC.
-    """
-    T = len(y)
-    AIC = np.zeros(p_max+1)
-    for p in range(p_max + 1):
-        a_hat, res = estimate_AR_res(y, h, p)
-        sigma2 = np.sum(res ** 2) / (T - p - 1)
-        AIC[p] = np.log(sigma2) + 2 * (p + 1) / T
-    p_star = np.argmin(AIC)
-    return p_star
-
-def estimate_AR_res(y, h, p):
-    """
-    Estimates the AR model and returns the residuals.
-    """
-    T = len(y)
-    X = np.zeros((T - p, p + 1))
-    for i in range(T - p):
-        X[i, :] = np.concatenate((np.array([1]), y[i:i + p]))
-    y_h = y[p:]
-    lm = LinearRegression()
-    lm.fit(X, y_h)
-    a_hat = lm.coef_
-    res = y_h - lm.predict(X)
-    return a_hat, res
-
-def load_yf(ticker='^GSPC'):
-    # Load data from VIX
-    serie = yf.download(ticker, start='1960-01-01', end='2020-01-01')
-
-    serie = serie['Close']
-    # Compute the historical mean at each time point
-    serie_mean = np.zeros(len(serie))
-    for t in range(len(serie)):
-        serie_mean[t] = np.mean(serie[:t])
-
-    # Demean the data
-    serie = serie - serie_mean
-
-    # Compute variance over each month
-    serie = serie.resample('M').std() 
-
-    return serie
 
 def in_sample(y, z):
     """ This function computes the in-sample R^2 and the in-sample adjusted R^2."""
@@ -61,11 +15,10 @@ def in_sample(y, z):
     out_table = []
     loadings = []
     horizon = [1]
-    maxp = [1]
+    maxp = [2]
     kn = 15
     Zs = (z - np.mean(z, axis=0)) / np.std(z, axis=0)
     T = y.shape[0]
-
 
     for k in range(len(horizon)):
         h = horizon[k]
@@ -126,7 +79,6 @@ def in_sample(y, z):
             parm, std_err, t_stat, reg_se, adj_r2_spc, bic = linear_reg(res_h, z_spc[p_AR_star_n-1:-h, :l+1], constant=1, nlag=h)
             adr2_spc[l] = adj_r2_spc
         
-
         out.append(np.vstack((adr2_pc, adr2_spc)).T * 100)
         out_table.append(np.vstack((var_explained_pc[:kn], var_explained_spc[:kn])).T)
     
@@ -134,43 +86,15 @@ def in_sample(y, z):
     output = np.round(output, 2)
 
     return output
-    
+
 def main():
-    # Load data
-    file_path_clean = os.path.join(os.path.dirname(__file__), 'resources/data/data_fred_matlab.csv')
-    file_path_raw = os.path.join(os.path.dirname(__file__), 'resources/data/raw_data_no_missing.csv')
-    data = pd.read_csv(file_path_clean)
-    raw_data = pd.read_csv(file_path_raw)
-
-    # Set date as index of df
-    data['sasdate'] = pd.to_datetime(data['sasdate'])
-    data.set_index('sasdate', inplace=True)
-
-    # Drop last column (unnamed)
-    data.drop(data.columns[-1], axis=1, inplace=True)
-
-    raw_data['sasdate'] = pd.to_datetime(raw_data['sasdate'])
-    raw_data.set_index('sasdate', inplace=True)
-
-    # Get the to be predicted variable
-    inflation = np.log(raw_data['CPIAUCSL']).diff().dropna()
-    unemployment = np.log(raw_data['UNRATE']).diff().dropna()
-    ip_growth = np.log(raw_data['INDPRO']).diff().dropna()
-
-    # Select only data from 1960-01-01 untill 2019-12-01
-    data = data.loc[(data.index >= '1960-01-01') & (data.index <= '2019-12-01')]
+    variables = get_data()
+    data = variables['data']
+    #inflation = variables['inflation']
+    unemployment = variables['unemployment']
+    #ip_growth = variables['ip_growth']
     
-    # Drop first few rows of raw data to match dimensions by taking last 720 rows
-    inflation = inflation.iloc[-720:]
-    unemployment = unemployment.iloc[-720:]
-    ip_growth = ip_growth.iloc[-720:]
-    vol = load_yf('^GSPC')
-
-    # Drop columns that are not used in original paper
-    to_drop = ["ACOGNO", "TWEXAFEGSMTHx", "OILPRICEx", "VXOCLSx", "UMCSENTx"]
-    data.drop(to_drop, axis=1, inplace=True)
-
-    test = in_sample(y = vol, z = data.values)
+    test = in_sample(y = unemployment, z = data.values)
     print(test)
 
 if __name__ == '__main__':

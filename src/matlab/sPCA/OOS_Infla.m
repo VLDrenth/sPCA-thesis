@@ -1,6 +1,6 @@
 clear;clc;
-load('Data/DataMat/MacroTarget.mat');
-load('Data/Data_Processed/FRED.mat');
+load('MacroTarget.mat');
+load('FRED.mat');
 
 log_cpi=log(cpi_level(:,2));
 dlog_cpi=log_cpi(2:end)-log_cpi(1:end-1);
@@ -17,7 +17,7 @@ z=macro_nm2(tt2,:);
 out=cell(1,4);
 horizon=[1 3 6 12];
 maxp=[1 3 3 3];
-for kk=1:4
+for kk=1:1
 h=horizon(kk); % forecast horizon
 T=length(y);
 M=(1984-1959)*12; % 1961:07-1979:12 in-sample period
@@ -117,8 +117,7 @@ for n=1:N-(h-1);
             else
                c_hat_n=linear_reg(y_n_h(2:end),z_factor_n(1:end-1-(h-1),:),1,'Skip',h);
                FC_ARDL_DI(n,cc)=[1 z_factor_n(end,:)]*c_hat_n;
-            end;
-            
+            end
         end
         
         if jj==1
@@ -126,10 +125,8 @@ for n=1:N-(h-1);
         else
             FC_sPCA(n,:)=FC_ARDL_DI(n,:);
         end
-        
     end
  
-
 %      b_pc_n = linear_reg(y_n_h(2:end),[z_pc_n(1:end-1-(h-1),:) ],1,'Skip',18);
 %      b_trans_n = linear_reg(y_n_h(2:end),[z_trans_n(1:end-1-(h-1),:) ],1,'Skip',18);
 %      b_target1_n = linear_reg(y_n_h(2:end),[z_target1_n(1:end-1-(h-1),:) ],1,'Skip',18);
@@ -165,8 +162,8 @@ legend('PCA','sPCA');
 
 subplot(2,2,2)
 hold on
-plot(1:10,output(11:20,1),'--b');
-plot(1:10,output(11:20,2),'-r');
+plot(1:10,output(1:10,1),'--b');
+plot(1:10,output(1:10,2),'-r');
 title('Panel B: Predict inflation at 3-month horizon','Interpreter','latex','FontSize',10);
 ylabel('OOS-$R^2$ (\%)','Interpreter','latex');
 
