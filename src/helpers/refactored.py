@@ -68,15 +68,17 @@ def reduce_dimensions(X, method, hyper_params, dim_red_model=None, cv=False):
     X : array
         Array of features with reduced dimensions
     """
-    nfac = hyper_params.get("nfac", 5)
 
     if method == "pca":
+        nfac = hyper_params['nfac']
         pc = PCA(n_components=nfac)
         X = pc.fit_transform(X)
     elif method == "kpca":
-        pc = KernelPCA(kernel_params=hyper_params)
-
-        X = pc.fit_transform(X)
+        n_components = hyper_params['n_components']
+        kernel = hyper_params['kernel']
+        gamma = hyper_params['gamma']
+        pc = KernelPCA(n_components=n_components, kernel=kernel, gamma=gamma)
+        X = pc.fit_transform(X)/gamma
     elif method == "ae":
         if cv:
             # Initialize the autoencoder model with the hyperparameters
@@ -144,7 +146,7 @@ def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "dista
     Return the model configuration with the lowest MSE
     """
     T_train = X.shape[0]
-    window = int(0.5 * T_train)
+    window = int(0.8 * T_train)
     N_test = T_train - window
 
     hyperparameters = grid.keys()
@@ -209,7 +211,7 @@ def forecast(x, y, h, method="ols", hyper_params=None):
     """
     if method == "ols":
         model = LinearRegression()
-    elif method == "kkr":
+    elif method == "krr":
         model = KernelRidge(kernel_params=hyper_params)
     elif method == "rf":
         model = RandomForestRegressor(hyper_params)
