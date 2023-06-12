@@ -12,9 +12,9 @@ class Encoder(nn.Module):
         layers = create_layers(layer_dims, activation)
         
         # Add 1-D convolutional layer to capture temporal dependencies
-        #layers.insert(0, nn.Conv1d(1, 1, 3, padding=1))
-        #layers.insert(1, activation())
-        #layers.insert(2, nn.BatchNorm1d(1))
+        layers.insert(0, nn.Conv1d(1, 1, 3, padding=1))
+        layers.insert(1, activation())
+        layers.insert(2, nn.BatchNorm1d(1))
         #layers.insert(3, nn.Conv1d(1, 1, 3, padding=1))
         #layers.insert(4, activation())
         #layers.insert(5, nn.BatchNorm1d(1))
@@ -38,9 +38,9 @@ class Decoder(nn.Module):
 
         # Adds 1-D convolutional layer at the end to capture temporal dependencies
         
-        #layers.append(nn.ConvTranspose1d(1, 1, 3, padding=1))
-        #layers.append(activation())
-        #layers.append(nn.BatchNorm1d(1))
+        layers.append(nn.ConvTranspose1d(1, 1, 3, padding=1))
+        layers.append(activation())
+        layers.append(nn.BatchNorm1d(1))
         #layers.append(nn.ConvTranspose1d(1, 1, 3, padding=1))
         #layers.append(activation())
         #layers.append(nn.BatchNorm1d(1))
@@ -55,7 +55,7 @@ class Decoder(nn.Module):
 
 class Autoencoder(nn.Module):
 
-    def __init__(self, input_dim=123, activation=nn.ReLU, hyper_params=None):
+    def __init__(self, input_dim=123, activation=nn.SiLU, hyper_params=None):
         super(Autoencoder, self).__init__()
         # Initialize hyperparameters
         if hyper_params is not None:
@@ -136,6 +136,7 @@ class Autoencoder(nn.Module):
                 
                 # Update
                 optimizer.step()
+            #if epoch % 100 == 0:
             #print(f"Epoch: {epoch}, Loss: {loss.item()}")
 
     
@@ -165,8 +166,3 @@ if __name__ == "__main__":
     X_test = torch.from_numpy(X_test).float()
     X_test = X_test.to(model.device)
     latent = model.encode(X_test).cpu().detach().numpy()
-
-
-
-
-

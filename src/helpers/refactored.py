@@ -13,6 +13,8 @@ from sklearn.linear_model import LinearRegression
 from dcor import distance_correlation
 from minepy import cstats
 from src.helpers.autoencoder import Autoencoder
+from scipy.stats import chi2
+
 
 def ar_forecast(p_AR_star_n, y_t, h, resids=False):
     """ Forecast AR model for h step ahead"""
@@ -80,18 +82,11 @@ def reduce_dimensions(X, method, hyper_params, dim_red_model=None, cv=False):
         pc = KernelPCA(n_components=n_components, kernel=kernel, gamma=gamma)
         X = pc.fit_transform(X)/gamma
     elif method == "ae":
-        if cv:
-            # Initialize the autoencoder model with the hyperparameters
-            ae = Autoencoder(input_dim=X.shape[1], hyper_params=hyper_params)
+        # Get the autoencoder model from input
+        ae = dim_red_model
 
-            # Fit the autoencoder to the data for a large number of epochs
-            ae.train_model(X, num_epochs = hyper_params.get("epochs", 100), lr=hyper_params.get("lr", 0.001))
-        else:
-            # Get the autoencoder model from input
-            ae = dim_red_model
-
-            # Fit the autoencoder to the data for a smaller number of epochs
-            ae.train_model(X, num_epochs = 50, lr=hyper_params.get("lr", 0.001))
+        # Fit the autoencoder to the data for a smaller number of epochs
+        ae.train_model(X, num_epochs = hyper_params.get("update_epochs", 50), lr=hyper_params.get("update_lr", 0.001))
 
         X = ae.encode(X)
     elif method == "lstm":
@@ -168,7 +163,12 @@ def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "dista
         hyper_params = dict(zip(hyperparameters, hyper_params))
 
         # Print the current model configuration
-        #print("Model configuration: ", hyper_params, " ", idx + 1, "/", len(parameter_combinations))
+        if method == "ae":
+            print("Model configuration: ", hyper_params, " ", idx + 1, "/", len(parameter_combinations))
+
+            # Train model on initial training window
+            ae = Autoencoder(input_dim=X.shape[1], hyper_params=hyper_params)
+            ae.train_model(X[:window], num_epochs = hyper_params.get("epochs", 100), lr=hyper_params.get("lr", 0.001))
 
         # Iterate over all windows
         for i in range(N_test):
@@ -182,9 +182,9 @@ def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "dista
             X_t = X_t * scaling_factors
 
             # Reduce the dimensions
-            X_t = reduce_dimensions(X_t, method, hyper_params, cv=True)
+            X_t = reduce_dimensions(X_t, method, hyper_params, dim_red_model=ae)
 
-            # Forecast
+            # Forecast 
             lr.fit(X_t[:-h], y_t[h:])
             y_hat[i, idx] = lr.predict(X_t[-1].reshape(1, -1))
         
@@ -225,3 +225,30 @@ def forecast(x, y, h, method="ols", hyper_params=None):
     prediction = model.predict(x[-1].reshape(1, -1))
 
     return prediction
+
+
+def get_krr_grid(y, X):
+    """ 
+    Get the grid of hyperparameters for the kernel ridge regression model according to Exterkate
+
+    """
+    N = X.shape[1]
+
+    c_N = chi2.ppf(0.95, N)
+    sigma_0 = np.sqrt(c_N ) / np.pi
+
+    # Reduce dimension of data using PCA using first 4 PCs
+    pca = PCA(n_components=4)
+    X_pca = pca.fit_transform(X)
+
+    # Get the R2 of regressing y on the first 4 PCs
+    r2 = LinearRegression().fit(X_pca, y).score(X_pca, y)
+
+    lambda_0 = (1 - r2) / r2
+
+    # Get the grid of hyperparameters
+    grid = {"lambda": [lambda_0/8, lambda_0/4, lambda_0/2, lambda_0, 2*lambda_0], "sigma": [sigma_0/2, sigma_0, 2*sigma_0, 4*sigma_0, 8*sigma_0]}
+
+    return grid
+
+
