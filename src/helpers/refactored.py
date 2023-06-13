@@ -110,7 +110,7 @@ def reduce_dimensions(X, method, hyper_params, dim_red_model=None, cv=False):
 
     return X   
 
-def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "distance_correlation", grid = None):
+def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "distance_correlation", grid = None, ae=None):
     """ 
     Leave one out cross validation for time series
 
@@ -141,7 +141,7 @@ def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "dista
     Return the model configuration with the lowest MSE
     """
     T_train = X.shape[0]
-    window = int(0.8 * T_train)
+    window = int(0.6 * T_train)
     N_test = T_train - window
 
     hyperparameters = grid.keys()

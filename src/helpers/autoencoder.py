@@ -12,9 +12,9 @@ class Encoder(nn.Module):
         layers = create_layers(layer_dims, activation)
         
         # Add 1-D convolutional layer to capture temporal dependencies
-        layers.insert(0, nn.Conv1d(1, 1, 3, padding=1))
-        layers.insert(1, activation())
-        layers.insert(2, nn.BatchNorm1d(1))
+        #layers.insert(0, nn.Conv1d(1, 1, 3, padding=1))
+        #layers.insert(1, activation())
+        #layers.insert(2, nn.BatchNorm1d(1))
         #layers.insert(3, nn.Conv1d(1, 1, 3, padding=1))
         #layers.insert(4, activation())
         #layers.insert(5, nn.BatchNorm1d(1))
@@ -38,9 +38,9 @@ class Decoder(nn.Module):
 
         # Adds 1-D convolutional layer at the end to capture temporal dependencies
         
-        layers.append(nn.ConvTranspose1d(1, 1, 3, padding=1))
-        layers.append(activation())
-        layers.append(nn.BatchNorm1d(1))
+        #layers.append(nn.ConvTranspose1d(1, 1, 3, padding=1))
+        #layers.append(activation())
+        #layers.append(nn.BatchNorm1d(1))
         #layers.append(nn.ConvTranspose1d(1, 1, 3, padding=1))
         #layers.append(activation())
         #layers.append(nn.BatchNorm1d(1))
@@ -68,7 +68,7 @@ class Autoencoder(nn.Module):
         else:
             raise Exception("Hyperparameters not provided")
 
-        self.layer_dims = [input_dim] + self.layer_dims + [self.hidden_dim]
+        self.layer_dims = [input_dim] + list(self.layer_dims) + [self.hidden_dim]
 
         self.encoder = Encoder(self.layer_dims, activation=activation)
         self.decoder = Decoder(self.layer_dims, activation=activation)
@@ -109,7 +109,7 @@ class Autoencoder(nn.Module):
             # Return numpy array
             return output.cpu().detach().numpy()
         
-    def train_model(self, X, lr=1e-3, num_epochs=100, batch_size=64):
+    def train_model(self, X, lr=1e-3, num_epochs=100, batch_size=100):
         self.train()
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
         num_epochs = num_epochs
