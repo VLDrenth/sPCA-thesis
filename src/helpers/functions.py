@@ -440,6 +440,8 @@ def lag_matrix(X, y, lags):
     """
     Creates a matrix of lagged versions of a given array.
     """
+
+    # If X is a vector, make it a matrix
     if lags == 0:
         return X
     else:

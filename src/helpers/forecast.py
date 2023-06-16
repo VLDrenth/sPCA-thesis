@@ -28,7 +28,7 @@ class Forecast:
 
         # Estimate regression coefficients
         self.model.fit(x[:-self.h], y[self.h:])
-        
+
         # Compute the forecast of the PCA and scaled PCA model
         prediction = self.model.predict(x[-1].reshape(1, -1))
 
