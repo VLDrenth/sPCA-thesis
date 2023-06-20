@@ -173,7 +173,7 @@ def reduce_dimensions(X, method, hyper_params, dim_red_model=None, cv=False):
 
     return X   
 
-def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "distance_correlation", grid = None, ae=None):
+def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "distance_correlation", forecast_method = "ols", grid = None, ae=None):
     """ 
     Leave one out cross validation for time series
 
@@ -220,10 +220,11 @@ def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "dista
     y_actual = np.full((N_test - h, 1), np.nan)
     
     print("Number of model configurations: ", len(parameter_combinations))
-    
     # Iterate over all model configurations
     for idx, hyper_params in enumerate(parameter_combinations):
         hyper_params = dict(zip(hyperparameters, hyper_params))
+
+        rf = RandomForestRegressor()
 
         # Print the current model configuration
         if method == "ae":
@@ -253,10 +254,14 @@ def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "dista
                 # Remove the first p_AR_star_n observations of y_t
                 y_t = y_t[p_AR_star_n-1:]
 
-
             # Forecast 
-            lr.fit(X_t[:-h], y_t[h:])
-            y_hat[i, idx] = lr.predict(X_t[-1].reshape(1, -1))
+            if forecast_method == "ols":
+                lr.fit(X_t[:-h], y_t[h:])
+                y_hat[i, idx] = lr.predict(X_t[-1].reshape(1, -1))
+            elif forecast_method == "rf":
+                rf.fit(X_t[:-h], y_t[h:])
+                y_hat[i, idx] = rf.predict(X_t[-1].reshape(1, -1))
+
         
     # Compute MSE for each model configuration
     results = ((y_actual - y_hat)**2).mean(axis=0)
@@ -343,13 +348,13 @@ def loocv_ts_bayes(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = 
     space_hp = {
     'hidden_dim': hp.choice('hidden_dim', space['hidden_dim']),
     'layer_dims': hp.choice('layer_dims', space['layer_dims']),
-    'activation': hp.choice('activation', space['activation']),
-    'gauss_noise': hp.uniform('gauss_noise', 0, 1),
-    'dropout': hp.uniform('dropout', 0, 0.5),
+    'gauss_noise': hp.uniform('gauss_noise', 0.01, 0.75),
+    'dropout': hp.uniform('dropout', 0.01, 0.5),
     'epochs': hp.choice('epochs', space['epochs']),
     'batch_size': hp.choice('batch_size', space['batch_size']),
     'update_epochs': hp.choice('update_epochs', space['update_epochs']),
-    'update_lr': hp.choice('update_lr', space['update_lr']),	
+    'update_lr': hp.choice('update_lr', space['update_lr']),
+    'lr': hp.choice('lr', space['lr']),	
     }
 
     T_train = X.shape[0]
@@ -403,6 +408,7 @@ def loocv_ts_bayes(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = 
 
     # Use Bayesian optimization to find the best hyperparameters
     best = fmin(fn=objective, space=space_hp, algo=tpe.suggest, max_evals=trials)
+    print(best)
     best = {k: space[k][v] if k in space else v for k, v in best.items()}
 
     # Print the best model configuration

@@ -73,7 +73,7 @@ def sPCAest(target, X, nfac, quantile=[0, 100], h_steps=1):
         lr = LinearRegression(fit_intercept=True)
 
         # Drop the last h_steps observations from Xs and target to avoid look-ahead bias
-        lr.fit(Xs[:-h_steps, j].reshape(-1, 1), target[:-h_steps])
+        lr.fit(Xs[:-h_steps, j].reshape(-1, 1), target[h_steps:])
         beta[j] = lr.coef_[0]
 
         #xvar = np.column_stack((np.ones(T), Xs[:, j]))

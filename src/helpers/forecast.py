@@ -37,7 +37,7 @@ class Forecast:
     def cross_validate(self, X, y, hyper_params):
         """ Cross validate the model """
         T_train = X.shape[0]
-        window = int(0.5 * T_train)
+        window = int(0.7 * T_train)
         N_test = T_train - window
         h = self.h
 
@@ -61,7 +61,7 @@ class Forecast:
             for i in range(N_test):
                 # Get the window of data
                 X_t, y_t = X[i:window + i], y[i:window + i]
-                y_actual[i, 0] = y[window + i]
+                y_actual[i, 0] = y[window + i + h -1]
                 
                 # Make the prediction using the current model configuration
                 self.model.fit(X_t[:-h], y_t[h:])
@@ -74,6 +74,8 @@ class Forecast:
         best_idx = np.argmin(results)
         best_params = parameter_combinations[best_idx]
         best_params = dict(zip(hyperparameters, best_params))
+
+        print("Best model configuration: ", best_params, " with MSE: ", results[best_idx])
 
         self.model = self.model.set_params(**best_params)
 
