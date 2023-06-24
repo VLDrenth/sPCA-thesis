@@ -15,8 +15,8 @@ def in_sample(y, z):
     out_table = []
     loadings = []
     horizon = [1]
-    maxp = [2]
-    kn = 15
+    maxp = [3]
+    kn = 8
     Zs = (z - np.mean(z, axis=0)) / np.std(z, axis=0)
     T = y.shape[0]
 
@@ -41,6 +41,7 @@ def in_sample(y, z):
             #parm = lm.coef_
             parm, std_err, t_stat, reg_se, adj_r2, bic = linear_reg(y_h[h:], Zs[:-h, j].reshape(-1, 1), constant=1, nlag=h)
             beta[j] = parm[1]
+            tstat[j] = t_stat[1]
 
         # Winsorizing should be done at (0, 90)
         beta_win = winsor(np.abs(beta), p=(0, 90))
@@ -90,12 +91,20 @@ def in_sample(y, z):
 def main():
     variables = get_data()
     data = variables['data']
-    #inflation = variables['inflation']
+    inflation = variables['inflation']
     unemployment = variables['unemployment']
-    #ip_growth = variables['ip_growth']
+    ip_growth = variables['ip_growth']
     
-    test = in_sample(y = unemployment, z = data.values)
-    print(test)
+    res_inflation = in_sample(y = inflation, z = data.values)
+    res_unemployment = in_sample(y = unemployment, z = data.values)
+    res_ip_growth = in_sample(y = ip_growth, z = data.values)
+
+    print("Inflation")
+    print(res_inflation)
+    print("Unemployment")
+    print(res_unemployment)
+    print("IP Growth")
+    print(res_ip_growth)
 
 if __name__ == '__main__':
     main()

@@ -3,20 +3,53 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.linear_model import LinearRegression
-from src.helpers.refactored import reduce_dimensions, scale_X
+from sklearn.preprocessing import PolynomialFeatures
+from scipy.spatial.distance import cdist
+from sklearn.svm import SVR
+
+class NadarayaWatson:
+    def __init__(self, kernel='gaussian', bandwidth=1.0):
+        self.kernel = kernel
+        self.bandwidth = bandwidth
+        
+    def fit(self, X, y):
+        self.X = X
+        self.y = y
+        return self
+    
+    def predict(self, X):
+        if self.kernel == 'gaussian':
+            K = np.exp(-0.5 * cdist(X, self.X)**2 / self.bandwidth**2)
+        else:
+            raise ValueError('Kernel function not recognized.')
+            
+        return np.sum(K * self.y, axis=1) / np.sum(K, axis=1)
+    
+    def set_params(self, **params):
+        if 'kernel' in params:
+            self.kernel = params['kernel']
+        if 'bandwidth' in params:
+            self.bandwidth = params['bandwidth']
+        return self
+
 
 class Forecast:
 
     def __init__(self, method, hyper_params=None, h=1):
+        self.method = method
         if not h:
             print("Warning: h is not set, defaulting to 1")
 
         if method == "ols":
             self.model = LinearRegression()
-        elif method == "kkr":
+        elif method == "krr":
             self.model = KernelRidge()
         elif method == "rf":
             self.model = RandomForestRegressor(n_estimators=100)
+        elif method == "nw":
+            self.model = NadarayaWatson()
+        elif method == "svr":
+            self.model = SVR(kernel="rbf")
         else:
             raise ValueError("Unknown method")
         
@@ -25,6 +58,8 @@ class Forecast:
 
     def predict(self, x, y):
         """ Predicts the next value from factors"""
+        if self.method == "poly":
+            x = PolynomialFeatures(degree=2).fit_transform(x)
 
         # Estimate regression coefficients
         self.model.fit(x[:-self.h], y[self.h:])
@@ -47,8 +82,8 @@ class Forecast:
         parameter_combinations = list(itertools.product(*parameter_values))
         
         # Initialize the arrays to store the forecasts
-        y_hat = np.full((N_test, len(parameter_combinations)), np.nan)
-        y_actual = np.full((N_test, 1), np.nan)
+        y_hat = np.full((N_test - h, len(parameter_combinations)), np.nan)
+        y_actual = np.full((N_test - h, 1), np.nan)
         
         # Iterate over all model configurations
         for idx, hyper_params in enumerate(parameter_combinations):
@@ -58,7 +93,7 @@ class Forecast:
             print("Model configuration: ", hyper_params, " ", idx + 1, "/", len(parameter_combinations))
 
             # Iterate over all windows
-            for i in range(N_test):
+            for i in range(N_test - h):
                 # Get the window of data
                 X_t, y_t = X[i:window + i], y[i:window + i]
                 y_actual[i, 0] = y[window + i + h -1]

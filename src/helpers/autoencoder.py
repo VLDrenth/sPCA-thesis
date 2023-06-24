@@ -59,7 +59,7 @@ class Autoencoder(nn.Module):
         super(Autoencoder, self).__init__()
         # Initialize hyperparameters
         if hyper_params is not None:
-            self.hidden_dim = hyper_params.get("hidden_dim", 10)
+            self.hidden_dim = hyper_params["hidden_dim"]
             self.input_dim = hyper_params.get("input_dim", input_dim)
             self.layer_dims = hyper_params.get("layer_dims", [64])
             self.activation = hyper_params.get("activation", activation)

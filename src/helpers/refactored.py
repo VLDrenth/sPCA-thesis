@@ -4,9 +4,9 @@ import pandas as pd
 from sklearn.decomposition import PCA, FastICA, KernelPCA
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.kernel_ridge import KernelRidge
-from sklearn.manifold import Isomap, LocallyLinearEmbedding, SpectralEmbedding
 
 from src.helpers.lstm_ae import LSTMAutoencoder
+from src.helpers.forecast import NadarayaWatson
 from .functions import estimate_AR_res, winsor
 from sklearn.linear_model import LinearRegression
 from dcor import distance_correlation
@@ -14,9 +14,9 @@ from src.helpers.autoencoder import Autoencoder
 from scipy.stats import chi2
 from src.helpers.functions import lag_matrix
 from statsmodels.tsa.ar_model import AutoReg
+from statsmodels.nonparametric.kernel_regression import KernelReg
 from hyperopt import hp, fmin, tpe, Trials, STATUS_OK, STATUS_FAIL
-
-
+from sklearn.svm import SVR
 
 def ar_forecast(p_AR_star_n, y_t, h, resids=False):
     """ Forecast AR model for h step ahead"""
@@ -90,11 +90,10 @@ def ar_predict(y, p, h):
 
     return forecast
 
-def scale_X(X_t, y_t, h,p_AR_star_n, method = "regression", model=None):
+def scale_X(X_t, y_t, h, method = "regression"):
     scaling_factors = np.full(X_t.shape[1], np.nan)
     X_t = X_t.copy()
     y_t = y_t.copy()
-
     if method == "regression":
         lr = LinearRegression()
 
@@ -107,7 +106,8 @@ def scale_X(X_t, y_t, h,p_AR_star_n, method = "regression", model=None):
             scaling_factors[j] = distance_correlation(X_t[:-h, j], y_t[h:])
     elif method == "none":
         scaling_factors = np.ones(X_t.shape[1])
-    
+    else:
+        raise ValueError("Scaling method not recognized")
     # Return scaling factors
     return scaling_factors
 
@@ -211,20 +211,26 @@ def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "dista
     parameter_values = grid.values()
     
     parameter_combinations = list(itertools.product(*parameter_values))
-        
+
+    if len(parameter_combinations) == 1:
+        parameter_combinations = parameter_combinations[0]
+        return dict(zip(hyperparameters, parameter_combinations))
+
     # Initialize the forecasting model
     lr = LinearRegression()
 
     # Initialize the arrays to store the forecasts
     y_hat = np.full((N_test - h, len(parameter_combinations)), np.nan)
     y_actual = np.full((N_test - h, 1), np.nan)
-    
+
+    rf = RandomForestRegressor()
+    nw = NadarayaWatson()
+
     print("Number of model configurations: ", len(parameter_combinations))
     # Iterate over all model configurations
     for idx, hyper_params in enumerate(parameter_combinations):
         hyper_params = dict(zip(hyperparameters, hyper_params))
 
-        rf = RandomForestRegressor()
 
         # Print the current model configuration
         if method == "ae":
@@ -240,7 +246,7 @@ def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "dista
             y_actual[i, 0] = y[window + i + h - 1]
 
             # Scale the data
-            scaling_factors = scale_X(X_t, y_t, h, p_AR_star_n, scale_method)
+            scaling_factors = scale_X(X_t, y_t, h, scale_method)
             scaling_factors = winsor(np.abs(scaling_factors), p=(0, 90))
 
             X_t = X_t * scaling_factors
@@ -261,6 +267,21 @@ def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "dista
             elif forecast_method == "rf":
                 rf.fit(X_t[:-h], y_t[h:])
                 y_hat[i, idx] = rf.predict(X_t[-1].reshape(1, -1))
+            elif forecast_method == "nw":
+                nw.fit(X_t[:-h], y_t[h:])
+                y_hat[i, idx] = nw.predict(X_t[-1].reshape(1, -1))
+            elif forecast_method == "gam":
+                gam = LinearGAM().fit(X_t[:-h], y_t[h:])
+                y_hat[i, idx] = gam.predict(X_t[-1].reshape(1, -1))
+            elif forecast_method == "svr":
+                svr = SVR(kernel="rbf").fit(X_t[:-h], y_t[h:])
+                y_hat[i, idx] = svr.predict(X_t[-1].reshape(1, -1))
+            elif forecast_method == "krr":
+                krr = KernelRidge(kernel="rbf").fit(X_t[:-h], y_t[h:])
+                y_hat[i, idx] = krr.predict(X_t[-1].reshape(1, -1))
+            else:
+                raise ValueError("Invalid forecast method")
+        
 
         
     # Compute MSE for each model configuration
@@ -279,27 +300,6 @@ def loocv_ts(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "dista
 def standardize(X):
     """ Standardize the data """
     return (X - X.mean(axis=0)) / X.std(axis=0)
-
-def forecast(x, y, h, method="ols", hyper_params=None):
-    """
-    Given a set of features and target values, compute the forecast using the given method. NB: x, y will be shifted by h in the function
-    """
-    if method == "ols":
-        model = LinearRegression()
-    elif method == "krr":
-        model = KernelRidge(kernel_params=hyper_params)
-    elif method == "rf":
-        model = RandomForestRegressor(hyper_params)
-    else:
-        raise ValueError("Unknown method")
-
-    # Estimate regression coefficients
-    model.fit(x[:-h], y[h:])
-    
-    # Compute the forecast of the PCA and scaled PCA model
-    prediction = model.predict(x[-1].reshape(1, -1))
-
-    return prediction
 
 
 def get_krr_grid(y, X):
@@ -326,7 +326,7 @@ def get_krr_grid(y, X):
 
     return grid
 
-def loocv_ts_bayes(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "distance_correlation", space = None, ae=None, trials= 50):
+def loocv_ts_bayes(X, y, forecast_method, h = 1, p_AR_star_n = 1, method = "pca", scale_method = "distance_correlation", space = None, ae=None, trials= 50):
     """ 
     Leave one out cross validation for time series with hyperparameter optimization
 
@@ -363,6 +363,8 @@ def loocv_ts_bayes(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = 
     
     # Initialize the forecasting model
     lr = LinearRegression()
+    svr = SVR(kernel="rbf")
+    rf = RandomForestRegressor(n_estimators=100)
 
     # Initialize the arrays to store the forecasts
     y_hat = np.full((N_test - h, 1), np.nan)
@@ -383,7 +385,7 @@ def loocv_ts_bayes(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = 
             y_actual[i, 0] = y[window + i + h - 1]
 
             # Scale the data
-            scaling_factors = scale_X(X_t, y_t, h, p_AR_star_n, scale_method)
+            scaling_factors = scale_X(X_t, y_t, h, scale_method)
             scaling_factors = winsor(np.abs(scaling_factors), p=(0, 90))
 
             X_t = X_t * scaling_factors
@@ -398,8 +400,18 @@ def loocv_ts_bayes(X, y, h = 1, p_AR_star_n = 1, method = "pca", scale_method = 
                 y_t = y_t[p_AR_star_n-1:]
 
             # Forecast 
-            lr.fit(X_t[:-h], y_t[h:])
-            y_hat[i, 0] = lr.predict(X_t[-1].reshape(1, -1))
+            if forecast_method == "ols":
+                lr.fit(X_t[:-h], y_t[h:])
+                y_hat[i, 0] = lr.predict(X_t[-1].reshape(1, -1))
+            elif forecast_method == "svr":
+                svr.fit(X_t[:-h], y_t[h:])
+                y_hat[i, 0] = svr.predict(X_t[-1].reshape(1, -1))
+            elif forecast_method == "rf":
+                rf.fit(X_t[:-h], y_t[h:])
+                y_hat[i, 0] = rf.predict(X_t[-1].reshape(1, -1))
+            else:
+                raise ValueError("Invalid forecast method")
+
         
         # Compute MSE for each model configuration
         result = ((y_actual - y_hat)**2).mean()
