@@ -91,7 +91,6 @@ for t = p:T-1
     YPred(t+1,1) = [1,Yt(end)]*bAR;
     YPred(t+1,2) = [1,Yt(end),PC(end,1:K)]*bPC;
     YPred(t+1,3) = [1,Yt(end),sPC(end,1:K)]*bsPC;
-
     disp(YPred(t+1, 1))
 end
 

@@ -1,12 +1,10 @@
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
-from sklearn.decomposition import PCA, FastICA
+from sklearn.decomposition import PCA
 from sklearn.metrics import r2_score
 import numpy as np
 import pandas as pd
 import os
-import sys
-import yfinance as yf
 
 ROOT = os.path.join("c:/Users/Vincent/PythonProjects/Thesis")
 
@@ -50,7 +48,6 @@ def winsor(x, p):
         raise ValueError('Output vector contains infinite values')
     
     out = y
-    # if nargout > 1: ??
     return out
 
 def sPCAest(target, X, nfac, quantile=[0, 100], h_steps=1):

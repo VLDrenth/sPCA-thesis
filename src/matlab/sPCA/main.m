@@ -2,15 +2,22 @@ clear;clc;
 load('MacroTarget.mat');
 load('FRED.mat');
 
-log_cpi=log(cpi_level(:,2));
-dlog_cpi=log_cpi(2:end)-log_cpi(1:end-1);
-cpidates=cpi_level(2:end,1);
+%log_cpi=log(cpi_level(:,2));
+%dlog_cpi=log_cpi(2:end)-log_cpi(1:end-1);
+%cpidates=cpi_level(2:end,1);
 
-tt1=(cpidates(:,1)>=196001 & cpidates(:,1)<=201912);
+log_ip=log(ip_level(:,2));
+dlog_ip=log_ip(2:end)-log_ip(1:end-1);
+ipdates=ip_level(2:end,1);
+
+
+%tt1=(cpidates(:,1)>=196001 & cpidates(:,1)<=201912);
+tt1=(ipdates(:,1)>=196001 & ipdates(:,1)<=201912);
+
 tt2=(yymm(:,1)>=196001 & yymm(:,1)<=201912);
 
-y=dlog_cpi(tt1,1);
-%y=standard(y);
+%y=dlog_cpi(tt1,1);
+y = dlog_ip(tt1, 1);
 z=macro_nm2(tt2,:); 
 
 %in-sample
@@ -18,7 +25,7 @@ out=cell(1,4);
 out_table=cell(1,4);
 loadings=cell(1,3);
 horizon=[1];
-maxp=[3];
+maxp=[1];
 kn=15;
 for kk=1:1
 h=horizon(kk);
@@ -38,8 +45,8 @@ Zs=standard(z);
 beta=NaN(1,size(Zs,2));
 tstat=NaN(1,size(Zs,2));
 for j=1:size(Zs,2)
-    [parm,~,t_stats]=linear_reg( y_h(2:end), Zs(1:end-1-(h-1),j) ,1,'NW',h);
-    %[parm,~,t_stats]=linear_reg( res_h(1:end), Zs(1:end-1-(h-1)-(p_AR_star_n-1),j) ,1,'NW',h);
+    %[parm,~,t_stats]=linear_reg( y_h(2:end), Zs(1:end-1-(h-1),j) ,1,'NW',h);
+    [parm,~,t_stats]=linear_reg( res_h(1:end), Zs(1:end-1-(h-1)-(p_AR_star_n-1),j) ,1,'NW',h);
     %[parm,~,t_stats]=linear_reg( y(2:end), Zs(1:end-1,j) ,1,'NW',1);
     beta(j)=parm(2);
     tstat(j)=t_stats(2);
